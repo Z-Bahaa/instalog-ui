@@ -9,6 +9,9 @@ export default {
       screens: {
         'md': { 'min': '500px' },
         'sm': { 'max': '499px' },
+        'thn': { 'max': '999px' },
+        'svn': { 'max': '720px' },
+        'fft': { 'max': '550px' },
       },
     },
   },

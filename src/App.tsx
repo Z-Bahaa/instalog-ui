@@ -1,9 +1,10 @@
-// import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import dayjs from 'dayjs';
 import './App.css'
 import {CgMediaLive} from 'react-icons/cg'
 import {IoDownload} from 'react-icons/io5'
 import {BiFilter} from 'react-icons/bi'
+import {AiOutlineClose} from 'react-icons/ai'
 
 const events = [
   {"id":"0268f3e0-6afd-4d10-b8e9-c0fb37fa16a4",
@@ -12,9 +13,12 @@ const events = [
 
 function App() {
 
-  return (
-    <div className="p-8 md:p-16 flex flex-col items-center space-y justify-items-start justify-between 
-      h-screen" >
+  const [activeEvent, setActiveEvent]: any = useState(events[0])
+  const [eventCardVisible, setEventCardVisible]: any = useState(false)
+  
+  
+  return (<div className="flex flex-col ">
+    <div  className="p-8 md:p-16 md:py-8 md:mt-8 flex flex-col items-center space-y justify-items-start justify-start h-fit" >
 
       <div id="upper-section" className="w-full rounded-tl-2xl rounded-tr-2xl bg-neutral-100 border-neutral-300 border-x border-t items-center flex flex-col p-3 pb-0">
 
@@ -70,39 +74,114 @@ function App() {
       </div>
     
       <div id="table-content-web" className="sm:hidden w-full divide-y divide-neutral-300 border-neutral-300 border-x">
-        {events.map(event => (
-          <div id="table-head" className=" grid grid-cols-3  w-full justify-between text-sm font-semibold pt-1 text-neutral-500 p-3 ">
-          <p className=" text-base text-neutral-700 font-normal py-2">{event.target_name}</p>
-          <p className=" text-base text-neutral-700 font-normal py-2">{event.action.name}</p>
-          <p className=" text-base text-neutral-700 font-normal py-2">{dayjs(event.occurred_at).format('MMM D, h:mm')}</p>
-          <p className=" text-base text-neutral-700 font-normal py-2">{event.target_name}</p>
-          <p className=" text-base text-neutral-700 font-normal py-2">{event.action.name}</p>
-          <p className=" text-base text-neutral-700 font-normal py-2">{dayjs(event.occurred_at).format('MMM D, h:mm')}</p>
+        {events.concat(events).slice(0, 10).map((event, i) => (<>
+          <div id="table-head" key={i}  onClick={() => {setActiveEvent(event); return setEventCardVisible(true)}} className=" hover:bg-neutral-200 grid grid-cols-3 auto-cols-auto  w-full items-center justify-between text-sm font-semibold pt-1 text-neutral-500 p-3 ">
+          <div className="flex items-center ">
+            <div className="ml-2 mr-4 flex items-center justify-items-center justify-center bg-gradient-to-r from-cyan-500 to-blue-500 aspect-square w-8 h-8 rounded-full mt-2">
+              <p className="text-white text-lg font-thin">{event.target_name[0].toUpperCase()}</p>
+            </div>
+            <p className=" text-base text-neutral-700 font-normal py-2 pb-0 truncate ">{event.target_name}</p>
+          </div>
+          <p className=" text-base text-neutral-700 font-normal py-2 pb-0 truncate ">{event.action.name}</p>
+          <p className=" text-base text-neutral-700 font-normal py-2 pb-0 truncate ">{dayjs(event.occurred_at).format('MMM D, h:mm')}</p>
         </div>
+        </>
         ))}
       </div>
 
       
 
       <div id="table-content" className="md:hidden w-full divide-y divide-neutral-300 border-neutral-300 border-x px-4">
-        {events.map(event => (
-          <div id="table-head" className=" flex flex-col  w-full justify-between text-sm font-semibold pt-1 text-neutral-500 pb-1 ">
-          <p className="text-xs">ACTOR</p>
-          <p className=" text-sm text-neutral-700 pb-2">{event.target_name}</p>
-          <p className="text-xs">ACTION</p>
-          <p className=" text-sm text-neutral-700 pb-2">{event.action.name}</p>
-          <p className="text-xs">DATE</p>
-          <p className=" text-sm text-neutral-700 pb-2">{dayjs(event.occurred_at).format('MMM D, h:mm')}</p>
+        {events.slice(0, 5).map((event, i) => (<>
+          <div id="table-head" key={i} onClick={() => setActiveEvent(event)} className=" flex flex-col  w-full justify-between text-sm font-semibold pt-1 text-neutral-500 pb-1 ">
+          <p className="text-xs pb-1">ACTOR</p>
+          <p className=" text-sm text-neutral-700 pb-1">{event.target_name}</p>
+          <p className="text-xs pb-1">ACTION</p>
+          <p className=" text-sm text-neutral-700 pb-1">{event.action.name}</p>
+          <p className="text-xs pb-1">DATE</p>
+          <p className=" text-sm text-neutral-700 pb-1">{dayjs(event.occurred_at).format('MMM D, h:mm')}</p>
         </div>
-        ))}
+        {
+          event.id != activeEvent.id ? "" :
+          (<div className="text-xs bg-red-100 text-center font-normal">
+            <p>to access event data, please use the webview console. </p>
+          </div>)
+        }
+        </>))}
       </div>
-
-      <button id="load-more"
+        
+      {events.length < 6 ? "" : (<button id="load-more"
       className="font-semibold bg-neutral-200 text-sm border-neutral-300 w-full p-3 rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-600
       ">
         LOAD MORE
-      </button>
+      </button>)}
+
+      {events.length > 0 ? "" : (<div id="load-more"
+      className="h-96 bg-neutral-200  self-end w-full flex items-center justify-center rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-900">
+        NO EVENT LOGS AVAILABLE
+      </div>)}
+
     </div >
+    {!eventCardVisible ? "" : (
+      <div  className="fixed z-1 w-screen h-screen">
+        <div onClick={() => {return setEventCardVisible(false)}} className=" absolute z-2  w-screen h-screen "></div>
+        <div id="event-card" className=" absolute z-12 bg-white sm:hidden svn:grid-cols-2 fft:p-8 thn:p-8 p-14 gap-x-32 thn:gap-x-4 gap-y-4 my-12 mx-8 mr-12  grid grid-cols-3 border-neutral-300 border rounded-3xl top-1/2 transform  -translate-y-1/2">
+        <AiOutlineClose color="red" className="absolute right-8 top-6" size="20px" onClick={() => {return setEventCardVisible(false)}}/>
+        <div className="">
+          <h1 className="font-medium text-sm text-neutral-500 mb-3">ACTOR</h1>
+          <div className="w-full   grid grid-cols-2 thn:grid-cols-1 ">
+          <p className="font-normal text-sm text-neutral-500 mb-2">Name</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.actor_name}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">Email</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.target_name}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">ID</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.actor_id}</p>
+          </div>
+        </div>
+        <div className="">
+          <h1 className="font-medium text-sm text-neutral-500 mb-3">ACTION</h1>
+          <div className="w-full   grid grid-cols-2 thn:grid-cols-1 ">
+          <p className="font-normal text-sm text-neutral-500 mb-2">Name</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.action.name}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">Object</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.action.object}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">ID</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.action.id}</p>
+          </div>
+        </div>
+        <div className="">
+          <h1 className="font-medium text-sm text-neutral-500 mb-3">DATE</h1>
+          <div className="w-full   grid grid-cols-2 thn:grid-cols-1 ">
+          <p className="font-normal text-sm text-neutral-500 mb-2">Readable</p>
+          <p className="font-normal text-sm text-black mb-2">{dayjs(activeEvent.occurred_at).format('MMM D, h:mm')}</p>
+          </div>
+        </div>
+        <div className="">
+          <h1 className="font-medium text-sm text-neutral-500 mb-3">METADATA</h1>
+          <div className="w-full   grid grid-cols-2 thn:grid-cols-1 ">
+          <p className="font-normal text-sm text-neutral-500 mb-2">Redirect</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.metadata.redirect}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">Description</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.metadata.description}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">Request ID</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.metadata.x_request_id}</p>
+          </div>
+        </div>
+        <div className="">
+          <h1 className="font-medium text-sm text-neutral-500 mb-3">TARGET</h1>
+          <div className="w-full   grid grid-cols-2 thn:grid-cols-1 ">
+          <p className="font-normal text-sm text-neutral-500 mb-2">Name</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.target_name}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">Location</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.location}</p>
+          <p className="font-normal text-sm text-neutral-500 mb-2">ID</p>
+          <p className="font-normal text-sm text-black mb-2">{activeEvent.target_id}</p>
+          </div>
+        </div>
+      </div>
+      </div>
+    )}
+  </div>
   )
 }
 
