@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import dayjs from 'dayjs';
 import './App.css'
+
 import BottomButton from './components/BottomButton'
 import CTAContainer from './components/CTAContainer'
 
@@ -34,7 +36,7 @@ function App() {
             <p className="text-xs">ACTION</p>
             <p className=" text-sm text-neutral-700 pb-2">{event.action.name}</p>
             <p className="text-xs">DATE</p>
-            <p className=" text-sm text-neutral-700 pb-2">{event.occurred_at}</p>
+            <p className=" text-sm text-neutral-700 pb-2">{dayjs(event.occurred_at).format('MMM D, h:mm')}</p>
           </div>
           ))}
         </div>
