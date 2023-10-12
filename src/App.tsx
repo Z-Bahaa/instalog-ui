@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios';'react'
+import axios from 'axios';
 import dayjs from 'dayjs';
 import './App.css'
 import {CgMediaLive} from 'react-icons/cg'
@@ -19,6 +19,7 @@ let events = [
 function App() {
 
   const [loading, setLoading] = useState(true)
+  const [isLive, setIsLive] = useState(true)
   const [eventsData, setEventsData]= useState<Event[]>([])
   const [activeEvent, setActiveEvent]: any = useState(events[0])
   const [eventCardVisible, setEventCardVisible]: any = useState(false)
@@ -30,24 +31,35 @@ function App() {
 
   const getEvents = async (url: string, pg?: number, search?: string) => {
     const response = await axios.get(url, {
-      query: {
+      params: {
         page: pg,
         search_val: search
       }})
-      if(page > 0) {await setEventsData(eventsData.slice(0, -1).concat(response.data));}
-      else  await setEventsData(response.data);
+      if(isLive) {
+        if(page > 0) {await setEventsData(eventsData.slice(0, -1).concat(response.data));}
+        else  await setEventsData(response.data);
+      }
       console.log(eventsData)
       return response.data;
   }
 
-  const { error, isLoading } = useSWR([`https://instalog.fly.dev/events/?page=${page}&search_val=${searchValue}`], getEvents);
+  const { error, isLoading } = useSWR([`https://instalog-api.onrender.com/events/?page=${page}&search_val=${searchValue}`], 
+    getEvents,{
+    refreshInterval: 30000, 
+  });
   
   if(error) console.log(error)
 
   // export into csv
   const handleExport = () => {
-    window.open('https://instalog.fly.dev/events/export', '_blank')
+    window.open(`https://instalog-api.onrender.com/events/export/?search_val=${searchValue}`, '_blank')
   }
+
+  // live 
+  const handleToggleLive = () => {
+    setIsLive(!isLive)
+  }
+
 
   const handleValueChange = (event: any) => {
     setPage(0)
@@ -86,9 +98,9 @@ function App() {
               <IoDownload size="17" color="#414141" />
               <p className="text-center text-neutral-500 text-xs font-normal mx-1">EXPORT</p>
             </button>
-            <button className=" flex items-center p-1 px-2 hover:bg-neutral-200" >
-              <CgMediaLive size="17" color="#414141" />
-              <p className="text-center text-neutral-500 text-xs font-normal mx-1">LIVE</p>
+            <button className={"flex items-center p-1 px-2 hover:bg-neutral-200"} onClick={handleToggleLive}>
+              <CgMediaLive size="17" color={isLive? "#d60b0b" : "#414141"} />
+              <p className={"text-center text-neutral-500 text-xs font-normal mx-1 " + (isLive ? "text-red-700 font-semibold" : "")}>LIVE</p>
             </button>
           </div>  
 
@@ -122,7 +134,7 @@ function App() {
       </div>
     
       <div id="table-content-web" className="sm:hidden w-full divide-y divide-neutral-300 border-neutral-300 border-x">
-        {eventsData.slice(0, 5*(page+1)).map((event, i) => (
+        {eventsData.slice(0, 10*(page+1)).map((event, i) => (
           <div id="table-head" key={i}  onClick={() => {setActiveEvent(event); return setEventCardVisible(true)}} className=" hover:bg-neutral-200 grid grid-cols-3 auto-cols-auto  w-full items-center justify-between text-sm font-semibold pt-1 text-neutral-500 p-3 ">
             <div className="flex items-center ">
               <div className="ml-2 mr-4 flex items-center justify-items-center justify-center bg-gradient-to-r from-cyan-500 to-blue-500 aspect-square w-8 h-8 rounded-full mt-2">
@@ -139,7 +151,7 @@ function App() {
       
 
       <div id="table-content" className="md:hidden w-full divide-y divide-neutral-300 border-neutral-300 border-x px-4">
-        {eventsData.slice(0, 5*(page+1)).map((event, i) => (<div key={i}>
+        {eventsData.slice(0, 10*(page+1)).map((event, i) => (<div key={i}>
           <div id="table-head" onClick={() => setActiveEvent(event)} className=" flex flex-col  w-full justify-between text-sm font-semibold pt-1 text-neutral-500 pb-1 ">
           <p className="text-xs pb-1">ACTOR</p>
           <p className=" text-sm text-neutral-700 pb-1">{event.target_name}</p>
@@ -157,7 +169,7 @@ function App() {
         </div>))}
       </div>
         
-      {eventsData.length < 5*(page+1)+1 ? "" : (<button id="load-more" onClick={() => setPage(page+1)}
+      {eventsData.length < 10*(page+1)+1 ? "" : (<button id="load-more" onClick={() => setPage(page+1)}
       className="font-semibold bg-neutral-200 text-sm border-neutral-300 w-full p-3 rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-600
       ">
         LOAD MORE
