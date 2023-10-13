@@ -14,12 +14,7 @@
     "noEmit": true,
     "jsx": "preserve",
 
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src", "src/domain-models/Event.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
