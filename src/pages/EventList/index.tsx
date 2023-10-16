@@ -19,13 +19,17 @@ import debounce from 'lodash.debounce'
 import downloadFile from '../../utils/downloadFile';
 import dayjs from 'dayjs';
 import useSWR, { preload } from 'swr'
+import EventsDataStore from './DataStore';
+import { camelizeKeys } from 'humps';
+
 
 const INITIAL_EVENTS_PAGE = 0;
+const INSTALOG_API = ""
 
 let preFetchedData = await preload({ page: INITIAL_EVENTS_PAGE, }, requestFetchAllEvents)
 
 const EventList = () => {
-  const [tickerStore] = useState(() => new TickersDataStore());
+  const [eventStore] = useState(() => new EventsDataStore());
 
   const [isLive, setIsLive] = useState(false)
   const [activeEvent, setActiveEvent] = useState(null)
@@ -33,8 +37,10 @@ const EventList = () => {
 
   const [page, setPage] = useState(INITIAL_EVENTS_PAGE)
   const [searchText, setSearchText] = useState(null)
+  const [lastCursor, setLastCursor] = useState(null)
+  const [hasNextPage, setHasNextPage] = useState(false)
 
-  const { data, isLoading: isLoadingEvents, error, mutate: getAllEvents } = useSWR({ page, searchText }, requestFetchAllEvents, {
+  const { data, isLoading: isLoadingEvents, error, mutate: getAllEvents } = useSWR({ searchText, lastCursor}, requestFetchAllEvents, {
     refreshInterval: 0,
     revalidateOnMount: false,
     revalidateOnFocus: false,
@@ -78,7 +84,12 @@ const EventList = () => {
       return
     }
     getAllEvents()
-  }, [page, searchText])
+    setLastCursor(data?.metaData?.lastCursor)
+    setHasNextPage(data?.metaData?.hasNextPage)
+    if(page === 0) {
+      eventStore.updateEventsList(data?.data)
+    } else eventStore.addEventsList(data?.data)
+  }, [page])
 
   useEffect(() => {
     if (!exportedEventsFile) {
@@ -96,8 +107,9 @@ const EventList = () => {
   }, [])
 
   useEffect(() => {
+    if(!isLive) return
     try {
-      fetchEventSource(`${INSTRUMENTS_API_URL}instruments-sse/general/forex`, {
+      fetchEventSource(`${import.meta.env.VITE_API_URL}events/live/`, {
         onopen(res) {
           if (res.ok && res.status === 200) {
             console.log("Connection made ", res);
@@ -113,8 +125,9 @@ const EventList = () => {
           if (!payload) {
             return;
           }
-          const newTickerData: TickerData = JSON.parse(payload);
-          tickerStore.addNewTicker(newTickerData);
+          const newEvent: Event = JSON.parse(payload);
+          // console.log(newEvent)
+          eventStore.addNewEvent(camelizeKeys(newEvent));
         },
         onclose() {
           console.log("Connection closed by the server");
@@ -123,14 +136,13 @@ const EventList = () => {
           console.log("There was an error from server", err);
         },
         headers: {
-          Authorization: `Bearer ${accessToken}`,
           Accept: "text/event-stream",
         },
       });
     } catch (error) {
       console.log(error);
     }
-  }, []);
+  }, [isLive]);
 
 
   return (<div className="flex flex-col w-full h-full">
@@ -208,20 +220,20 @@ const EventList = () => {
       </div>
 
       <div className="sm:hidden flex w-full divide-y divide-neutral-300 border-neutral-300 border-x">
-        {isLoadingEvents ? (
+        {isLoadingEvents && eventStore.eventsList?.length === 0 ? (
           <p>Loading....</p>
         ) : (
           <div className='flex-auto py-2'>
             <Virtuoso
               style={{ height: '100Vh' }}
-              totalCount={data?.length}
-              data={data}
+              totalCount={eventStore.eventsList?.length}
+              data={eventStore.eventsList}
               useWindowScroll
               itemContent={(index, item) => (
                 <ListItem
                   key={item.id}
                   actor={item.targetName}
-                  action={`${item.action.name} ${index}`}
+                  action={`${item.action.name}`}
                   date={item.occurredAt}
                   handleEventChange={() => handleActiveEventChange(item)}
                 />
@@ -232,13 +244,13 @@ const EventList = () => {
 
       </div>
 
-      <button disabled={true} onClick={() => setPage(page + 1)}
+      <button disabled={!data?.metaData?.hasNextPage} onClick={() => setPage(page + 1)}
         className="font-semibold bg-neutral-200 text-sm border-neutral-300 w-full p-3 rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-600
-      ">No More Events
-        {/* {hasMore ? 'LOAD MORE' : 'No More Events'} */}
+      ">
+        {hasNextPage  ? 'LOAD MORE' : 'No More Events'}
       </button>
 
-      {(data?.length === 0 && !isLoadingEvents) && (
+      {(eventStore.eventsList?.length === 0 && !isLoadingEvents) && (
         <div
           className="h-96 bg-neutral-200  self-end w-full flex items-center justify-center rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-900">
           NO EVENTS LOG AVAILABLE

@@ -4,7 +4,7 @@ import instance from './instance'
 import { Event } from '../domain-models'
 
 interface RequestFetchAllEventsArgs {
-  page: number;
+  lastCursor: string;
   searchText?: string;
   options?: {
     signal?: AbortSignal;
@@ -38,10 +38,10 @@ interface RequestFetchAllEventsResponse {
 
 
 
-const requestFetchAllEvents = async ({ page, searchText, options }: RequestFetchAllEventsArgs): Promise<Event[]> => {
+const requestFetchAllEvents = async ({ lastCursor, searchText, options }: RequestFetchAllEventsArgs): Promise<Event[]> => {
   const { data } = await instance.get<RequestFetchAllEventsResponse>('/events/', {
     params: {
-      page,
+      last_cursor: lastCursor,
       search_val: searchText
     },
     signal: options?.signal,
