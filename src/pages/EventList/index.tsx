@@ -1,15 +1,14 @@
-import { useState, useEffect, useMemo } from 'react'
-import { motion } from "framer-motion"
+import { useState, useEffect, useMemo, memo } from 'react'
+import { AnimatePresence, motion } from "framer-motion"
 import useSWRMutation from 'swr/mutation'
 import { observer } from "mobx-react-lite";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-
-import { CgMediaLive } from 'react-icons/cg'
-import { IoDownload } from 'react-icons/io5'
-import { BiFilter } from 'react-icons/bi'
-import { AiOutlineLoading3Quarters } from 'react-icons/ai'
+import Skeleton from 'react-loading-skeleton'
+import { CgMediaLive as _CgMediaLive } from 'react-icons/cg'
+import { IoDownload as _IoDownload } from 'react-icons/io5'
+import { BiFilter as _BiFilter } from 'react-icons/bi'
+import { AiOutlineLoading3Quarters as _AiOutlineLoading3Quarters } from 'react-icons/ai'
 import { Virtuoso } from 'react-virtuoso'
-
 import { Event } from '../../domain-models'
 import { requestFetchAllEvents, requestExportEvents } from '../../network';
 import ListItem from './ListItemWeb';
@@ -18,56 +17,59 @@ import EventDetails from './EventDetails'
 import debounce from 'lodash.debounce'
 import downloadFile from '../../utils/downloadFile';
 import dayjs from 'dayjs';
-import useSWR, { preload } from 'swr'
 import EventsDataStore from './DataStore';
 import { camelizeKeys } from 'humps';
 
+import 'react-loading-skeleton/dist/skeleton.css'
+import { preload } from 'swr';
 
-const INITIAL_EVENTS_PAGE = 0;
-const INSTALOG_API = ""
+let preFetchedData = await preload({}, requestFetchAllEvents)
 
-let preFetchedData = await preload({ page: INITIAL_EVENTS_PAGE, }, requestFetchAllEvents)
+// Memoizing icons to avoid re-drawing canvas on re-renders
+const CgMediaLive = memo(_CgMediaLive)
+const IoDownload = memo(_IoDownload)
+const BiFilter = memo(_BiFilter)
+const AiOutlineLoading3Quarters = memo(_AiOutlineLoading3Quarters)
 
-const EventList = () => {
+const EventList = observer(() => {
   const [eventStore] = useState(() => new EventsDataStore());
 
   const [isLive, setIsLive] = useState(false)
-  const [activeEvent, setActiveEvent] = useState(null)
-  const [eventCardVisible, setEventCardVisible] = useState(false)
+  const [activeEvent, setActiveEvent] = useState<Event | null>(null)
 
-  const [page, setPage] = useState(INITIAL_EVENTS_PAGE)
+
+  const [loadMore, setLoadMore] = useState({})
   const [searchText, setSearchText] = useState(null)
-  const [lastCursor, setLastCursor] = useState(null)
-  const [hasNextPage, setHasNextPage] = useState(false)
 
-  const { data, isLoading: isLoadingEvents, error, mutate: getAllEvents } = useSWR({ searchText, lastCursor}, requestFetchAllEvents, {
-    refreshInterval: 0,
-    revalidateOnMount: false,
-    revalidateOnFocus: false,
-    fallbackData: preFetchedData
-  });
-  const { data: exportedEventsFile, trigger: getExportableData, isMutating: exportEventsIsLoading, error: exportedEventsError } =
+  const {
+    data: eventsList,
+    isMutating: isLoadingEvents,
+    error: getAllEventsError,
+    trigger: getAllEvents
+  } = useSWRMutation({
+    searchText,
+    lastCursor: eventStore.getLastCursor()
+  }, requestFetchAllEvents);
+  const {
+    data: exportedEventsFile,
+    trigger: getExportableData,
+    isMutating: exportEventsIsLoading,
+    error: exportingEventsError
+  } =
     useSWRMutation({ searchText }, requestExportEvents);
+
+  const hasNextPage = Boolean(eventStore.getLastCursor)
 
   const handleToggleLive = () => {
     setIsLive(!isLive)
     if (isLive) {
-      setPage(0)
       setSearchText(null)
     }
   }
 
-  const handleActiveEventChange = (event: Event) => {
-    setActiveEvent(event);
-    setEventCardVisible(true)
-  }
-  const handleActiveEventDelete = (event: Event) => {
-    setActiveEvent(event);
-    setEventCardVisible(false)
-  }
-
   const handleSearchText = useMemo(() => debounce((event) => {
     setSearchText(event.target.value)
+    eventStore.setLastCursor(null)
   }, 300), [searchText])
 
   const handleExportList = () => {
@@ -80,16 +82,28 @@ const EventList = () => {
 
   useEffect(() => {
     if (preFetchedData) {
+      eventStore.setEventsList(preFetchedData.data)
+      eventStore.setLastCursor(preFetchedData?.metadata?.lastCursor)
       preFetchedData = undefined
       return
     }
+
     getAllEvents()
-    setLastCursor(data?.metaData?.lastCursor)
-    setHasNextPage(data?.metaData?.hasNextPage)
-    if(page === 0) {
-      eventStore.updateEventsList(data?.data)
-    } else eventStore.addEventsList(data?.data)
-  }, [page])
+  }, [searchText, loadMore])
+
+  useEffect(() => {
+    if (!eventsList?.data) {
+      return
+    }
+
+    if (eventsList.data.length === 0) {
+      // settings search results
+      eventStore.setEventsList(eventsList?.data)
+    } else {
+      eventStore.updateEventsList(eventsList?.data)
+      eventStore.setLastCursor(eventsList.metadata.lastCursor)
+    }
+  }, [eventsList])
 
   useEffect(() => {
     if (!exportedEventsFile) {
@@ -107,7 +121,8 @@ const EventList = () => {
   }, [])
 
   useEffect(() => {
-    if(!isLive) return
+    if (!isLive) return
+    const controller = new AbortController();
     try {
       fetchEventSource(`${import.meta.env.VITE_API_URL}events/live/`, {
         onopen(res) {
@@ -138,17 +153,28 @@ const EventList = () => {
         headers: {
           Accept: "text/event-stream",
         },
+        signal: controller.signal
       });
     } catch (error) {
       console.log(error);
     }
+    return () => {
+      controller.abort()
+    }
   }, [isLive]);
 
+  useEffect(() => {
+    // should report events list fetching error here
+  }, [getAllEventsError])
+
+  useEffect(() => {
+    // should report all events exporting error here
+  }, [exportingEventsError])
 
   return (<div className="flex flex-col w-full h-full">
     <div className="p-8 md:p-16 md:py-8 md:mt-8 flex flex-col items-center space-y justify-items-start justify-start h-fit" >
 
-      <div className="w-full rounded-tl-2xl rounded-tr-2xl bg-neutral-100 border-neutral-300 border-x border-t items-center flex flex-col p-3 pb-0">
+      <div className="w-full rounded-tl-2xl rounded-tr-2xl bg-neutral-100 border-neutral-300 border-x border-t items-center flex flex-col p-4 pb-0">
 
         <div className="flex w-full items-center justify-between p-2 rounded-lg border border-neutral-300 md:divide-x-2 md:divide-neutral-300">
 
@@ -211,7 +237,7 @@ const EventList = () => {
           <p>EVENTS LOG</p>
         </div>
 
-        <div className="sm:hidden grid grid-cols-3 w-full justify-items-center justify-between text-sm mt-2 font-semibold pt-1 text-neutral-700 pb-1">
+        <div className="sm:hidden grid grid-cols-3 w-full justify-items-center justify-between text-sm mt-2 font-semibold p-2 pb-2 text-neutral-700">
           <p className=" w-full ">ACTOR</p>
           <p className=" w-full ">ACTION</p>
           <p className=" w-full ">DATE</p>
@@ -220,53 +246,64 @@ const EventList = () => {
       </div>
 
       <div className="sm:hidden flex w-full divide-y divide-neutral-300 border-neutral-300 border-x">
-        {isLoadingEvents && eventStore.eventsList?.length === 0 ? (
-          <p>Loading....</p>
-        ) : (
-          <div className='flex-auto py-2'>
-            <Virtuoso
-              style={{ height: '100Vh' }}
-              totalCount={eventStore.eventsList?.length}
-              data={eventStore.eventsList}
-              useWindowScroll
-              itemContent={(index, item) => (
-                <ListItem
-                  key={item.id}
-                  actor={item.targetName}
-                  action={`${item.action.name}`}
-                  date={item.occurredAt}
-                  handleEventChange={() => handleActiveEventChange(item)}
-                />
-              )}
-            />
-          </div>
-        )}
 
+        <div className='flex-auto py-2' >
+          <AnimatePresence>
+            {(eventStore.eventsList?.length === 0 && !isLoadingEvents) ? (
+              <div
+                className="h-96 self-end w-full flex items-center justify-center text-center text-neutral-900">
+                NO EVENTS LOG AVAILABLE
+              </div>
+            ) : (
+              <Virtuoso
+                style={{ height: '100Vh', display: 'flex' }}
+                totalCount={eventStore.eventsList?.length}
+                data={eventStore.eventsList}
+                useWindowScroll
+                computeItemKey={(_, item) => item.id}
+                itemContent={(_, item) => {
+                  return <ListItem
+                    eventData={item}
+                    handleEventChange={(targetEvent: Event) => setActiveEvent(targetEvent)}
+                  />
+                }
+                }
+              />
+            )}
+            {(isLoadingEvents && eventStore.eventsList.length && hasNextPage) && (
+              <motion.div initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={{
+                  initial: { opacity: 0, y: -10 },
+                  animate: { opacity: 1, y: 0 },
+                  exit: { opacity: 0, y: -10 },
+                }}
+                className={'px-5 py-1'}>
+                <Skeleton height={28} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </div>
       </div>
 
-      <button disabled={!data?.metaData?.hasNextPage} onClick={() => setPage(page + 1)}
+
+      <button disabled={!hasNextPage} onClick={() => setLoadMore({})}
         className="font-semibold bg-neutral-200 text-sm border-neutral-300 w-full p-3 rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-600
       ">
-        {hasNextPage  ? 'LOAD MORE' : 'No More Events'}
+        {isLoadingEvents ? "Loading..." : hasNextPage ? 'LOAD MORE' : 'No More Events'}
       </button>
-
-      {(eventStore.eventsList?.length === 0 && !isLoadingEvents) && (
-        <div
-          className="h-96 bg-neutral-200  self-end w-full flex items-center justify-center rounded-bl-3xl rounded-br-3xl border-x border-b text-center text-neutral-900">
-          NO EVENTS LOG AVAILABLE
-        </div>
-      )}
     </div >
 
-
-    {(!eventCardVisible) ? "" : (activeEvent == null) ? "" : (
+    {activeEvent && (
       <EventDetails
         activeEvent={activeEvent}
-        handleEventChange={() => handleActiveEventDelete(null)}
+        handleEventChange={() => setActiveEvent(null)}
       />
     )}
-  </div>
+  </div >
   )
-}
+})
 
-export default observer(EventList)
+export default EventList

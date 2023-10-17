@@ -17,10 +17,13 @@
     "humps": "^2.0.1",
     "lodash.debounce": "^4.0.8",
     "lodash.isequal": "^4.5.0",
+    "mobx": "^6.10.2",
     "mobx-react-lite": "^4.0.5",
     "react": "^18.2.0",
+    "react-content-loader": "^6.2.1",
     "react-dom": "^18.2.0",
     "react-icons": "^4.11.0",
+    "react-loading-skeleton": "^3.3.1",
     "react-virtuoso": "^4.6.1",
     "swr": "^2.2.4"
   },

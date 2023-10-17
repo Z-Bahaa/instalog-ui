@@ -4,7 +4,7 @@ import instance from './instance'
 import { Event } from '../domain-models'
 
 interface RequestFetchAllEventsArgs {
-  lastCursor: string;
+  lastCursor?: string;
   searchText?: string;
   options?: {
     signal?: AbortSignal;
@@ -12,33 +12,41 @@ interface RequestFetchAllEventsArgs {
 }
 
 interface RequestFetchAllEventsResponse {
-  id: string;
-  object: string;
-  actor_id: string;
-  actor_name: string;
-  group: string;
-  target_id: string;
-  target_name: string;
-  location: string;
-  occurred_at: string;
-  action: {
+  metadata: {
+    last_cursor: string;
+  };
+  data: Array<{
     id: string;
     object: string;
-    name: string;
-    event_id: string;
-  };
-  metadata: {
-    id: string;
-    redirect: string;
-    description: string;
-    x_request_id: string;
-    event_id: string;
-  }
+    actor_id: string;
+    actor_name: string;
+    group: string;
+    target_id: string;
+    target_name: string;
+    location: string;
+    occurred_at: string;
+    action: {
+      id: string;
+      object: string;
+      name: string;
+      event_id: string;
+    };
+    metadata: {
+      id: string;
+      redirect: string;
+      description: string;
+      x_request_id: string;
+      event_id: string;
+    }
+  }>
 }
 
-
-
-const requestFetchAllEvents = async ({ lastCursor, searchText, options }: RequestFetchAllEventsArgs): Promise<Event[]> => {
+const requestFetchAllEvents = async ({ lastCursor, searchText, options }: RequestFetchAllEventsArgs): Promise<{
+  metadata: {
+    lastCursor;
+  };
+  data: Event[];
+}> => {
   const { data } = await instance.get<RequestFetchAllEventsResponse>('/events/', {
     params: {
       last_cursor: lastCursor,
