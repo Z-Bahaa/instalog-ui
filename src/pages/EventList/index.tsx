@@ -10,8 +10,10 @@ import { BiFilter as _BiFilter } from 'react-icons/bi'
 import { AiOutlineLoading3Quarters as _AiOutlineLoading3Quarters } from 'react-icons/ai'
 import { Virtuoso } from 'react-virtuoso'
 import { Event } from '../../domain-models'
-import { requestFetchAllEvents, requestExportEvents } from '../../network';
-import ListItem from './ListItemWeb';
+import {requestFetchAllEvents, 
+        requestExportEvents,
+        requestSyncEvents } from '../../network';
+import ListItemWeb from './ListItemWeb';
 import EventDetails from './EventDetails'
 
 import debounce from 'lodash.debounce'
@@ -21,9 +23,10 @@ import EventsDataStore from './DataStore';
 import { camelizeKeys } from 'humps';
 
 import 'react-loading-skeleton/dist/skeleton.css'
-import { preload } from 'swr';
+// import { preload } from 'swr';
 
-let preFetchedData = await preload({}, requestFetchAllEvents)
+
+// let preFetchedData = await preload({}, requestFetchAllEvents)
 
 // Memoizing icons to avoid re-drawing canvas on re-renders
 const CgMediaLive = memo(_CgMediaLive)
@@ -50,13 +53,24 @@ const EventList = observer(() => {
     searchText,
     lastCursor: eventStore.getLastCursor()
   }, requestFetchAllEvents);
+  
+  
   const {
     data: exportedEventsFile,
     trigger: getExportableData,
     isMutating: exportEventsIsLoading,
     error: exportingEventsError
   } =
-    useSWRMutation({ searchText }, requestExportEvents);
+  useSWRMutation({ searchText }, requestExportEvents);
+
+  const {
+    data: syncedEventsList,
+    isMutating: isLoadingSyncEvents,
+    error: syncEventsError,
+    trigger: syncEvents
+  } = useSWRMutation({
+    firstCursor: eventStore.getFirstCursor()
+  }, requestSyncEvents);
 
   const hasNextPage = Boolean(eventStore.getLastCursor)
 
@@ -67,9 +81,13 @@ const EventList = observer(() => {
     }
   }
 
+
   const handleSearchText = useMemo(() => debounce((event) => {
-    setSearchText(event.target.value)
+    eventStore.setEventsList([])
+    const value = event.target.value
+    setSearchText(value === "" ? null : value)
     eventStore.setLastCursor(null)
+    eventStore.setFirstCursor(null)
   }, 300), [searchText])
 
   const handleExportList = () => {
@@ -81,12 +99,13 @@ const EventList = observer(() => {
   }
 
   useEffect(() => {
-    if (preFetchedData) {
-      eventStore.setEventsList(preFetchedData.data)
-      eventStore.setLastCursor(preFetchedData?.metadata?.lastCursor)
-      preFetchedData = undefined
-      return
-    }
+    // if (preFetchedData) {
+    //   eventStore.setEventsList(preFetchedData.data)
+    //   eventStore.setLastCursor(preFetchedData?.metadata?.lastCursor)
+    //   eventStore.setFirstCursor(preFetchedData?.metadata?.firstCursor)
+    //   preFetchedData = undefined
+    //   return
+    // }
 
     getAllEvents()
   }, [searchText, loadMore])
@@ -95,15 +114,17 @@ const EventList = observer(() => {
     if (!eventsList?.data) {
       return
     }
-
-    if (eventsList.data.length === 0) {
+    if (eventStore.eventsList.length === 0) {
       // settings search results
       eventStore.setEventsList(eventsList?.data)
+      eventStore.setLastCursor(eventsList.metadata.lastCursor)
+      eventStore.setFirstCursor(eventsList.metadata.firstCursor)
     } else {
       eventStore.updateEventsList(eventsList?.data)
       eventStore.setLastCursor(eventsList.metadata.lastCursor)
     }
   }, [eventsList])
+
 
   useEffect(() => {
     if (!exportedEventsFile) {
@@ -122,6 +143,10 @@ const EventList = observer(() => {
 
   useEffect(() => {
     if (!isLive) return
+
+    // sync events list
+    syncEvents()
+
     const controller = new AbortController();
     try {
       fetchEventSource(`${import.meta.env.VITE_API_URL}events/live/`, {
@@ -135,6 +160,7 @@ const EventList = observer(() => {
           ) {
             console.log("Client side error ", res);
           }
+          return Promise.resolve()
         },
         onmessage({ data: payload }) {
           if (!payload) {
@@ -142,6 +168,7 @@ const EventList = observer(() => {
           }
           const newEvent: Event = JSON.parse(payload);
           // console.log(newEvent)
+          eventStore.setFirstCursor(newEvent.id)
           eventStore.addNewEvent(camelizeKeys(newEvent));
         },
         onclose() {
@@ -162,6 +189,18 @@ const EventList = observer(() => {
       controller.abort()
     }
   }, [isLive]);
+
+  useEffect(() => {
+    if (!syncedEventsList?.data) {
+      return
+    }
+    eventStore.syncEventsList(syncedEventsList.data)
+    eventStore.setFirstCursor(syncedEventsList.metadata.firstCursor)
+  }, [syncedEventsList])
+
+  useEffect(() => {
+    // should report all events exporting error here
+  }, [syncEventsError])
 
   useEffect(() => {
     // should report events list fetching error here
@@ -198,13 +237,20 @@ const EventList = observer(() => {
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, ease: 'linear', repeat: Infinity }}
                 >
-                  <AiOutlineLoading3Quarters size="17" color="#606060" />
+                  <AiOutlineLoading3Quarters size="12" color="#606060" />
                 </motion.div>
-                : <IoDownload size="17" color="#414141" />}
+                : <IoDownload size="15" color="#414141" />}
               <p className="text-center text-neutral-500 text-xs font-normal mx-1">EXPORT</p>
             </button>
-            <button className={"flex items-center p-1 px-2 hover:bg-neutral-200"} onClick={handleToggleLive}>
-              <CgMediaLive size="17" color={isLive ? "#d60b0b" : "#414141"} />
+            <button disabled={isLoadingSyncEvents} className={"flex items-center p-1 px-2 hover:bg-neutral-200"} onClick={handleToggleLive}>
+              {isLoadingSyncEvents && isLive?
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, ease: 'linear', repeat: Infinity }}
+              >
+                <AiOutlineLoading3Quarters size="12" color="#d60b0b" />
+              </motion.div>
+              : <CgMediaLive size="12" color={isLive ? "#d60b0b" : "#414141"} />}
               <p className={"text-center text-neutral-500 text-xs font-normal mx-1 " + (isLive ? "text-red-700 font-semibold" : "")}>LIVE</p>
             </button>
           </div>
@@ -228,7 +274,14 @@ const EventList = observer(() => {
             <p className="text-center text-neutral-500 text-sm font-normal mx-1 mt-1">EXPORT</p>
           </button>
           <button className=" flex items-center p-1 px-2" onClick={handleToggleLive}>
-            <CgMediaLive size="19" color={isLive ? "#d60b0b" : "#414141"} />
+            {isLoadingSyncEvents && isLive?
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, ease: 'linear', repeat: Infinity }}
+              >
+                <AiOutlineLoading3Quarters size="12" color="#d60b0b" />
+              </motion.div>
+            : <CgMediaLive size="12" color={isLive ? "#d60b0b" : "#414141"} />}
             <p className="text-center text-neutral-500 text-sm font-normal mx-1">LIVE</p>
           </button>
         </div>
@@ -245,7 +298,7 @@ const EventList = observer(() => {
 
       </div>
 
-      <div className="sm:hidden flex w-full divide-y divide-neutral-300 border-neutral-300 border-x">
+      <div className=" flex w-full divide-y divide-neutral-300 border-neutral-300 border-x">
 
         <div className='flex-auto py-2' >
           <AnimatePresence>
@@ -262,16 +315,18 @@ const EventList = observer(() => {
                 useWindowScroll
                 computeItemKey={(_, item) => item.id}
                 itemContent={(_, item) => {
-                  return <ListItem
+                  return (<ListItemWeb
                     eventData={item}
                     handleEventChange={(targetEvent: Event) => setActiveEvent(targetEvent)}
-                  />
+                  />)
                 }
                 }
               />
             )}
             {(isLoadingEvents && eventStore.eventsList.length && hasNextPage) && (
-              <motion.div initial="initial"
+              <motion.div 
+                key={"loader"}
+                initial="initial"
                 animate="animate"
                 exit="exit"
                 variants={{

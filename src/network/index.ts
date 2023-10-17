@@ -1,1 +1,1 @@
-export {requestFetchAllEvents, requestExportEvents} from './events'
+export {requestFetchAllEvents, requestExportEvents, requestSyncEvents} from './events'
